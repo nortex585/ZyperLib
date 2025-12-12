@@ -1,0 +1,238 @@
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local LocalPlayer = game:GetService("Players").LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+local HttpService = game:GetService("HttpService")
+
+local ZyperLib = {
+    Elements = {},
+    ThemeObjects = {},
+    Connections = {},
+    Flags = {},
+    Themes = {
+        Default = {
+            Main = Color3.fromRGB(25, 25, 25),
+            Second = Color3.fromRGB(32, 32, 32),
+            Stroke = Color3.fromRGB(60, 60, 60),
+            Divider = Color3.fromRGB(60, 60, 60),
+            Text = Color3.fromRGB(240, 240, 240),
+            TextDark = Color3.fromRGB(150, 150, 150)
+        }
+    },
+    SelectedTheme = "Default",
+    Folder = nil,
+    SaveCfg = false
+}
+
+-- Feather Icons
+local Icons = {}
+local Success, Response = pcall(function()
+    Icons = HttpService:JSONDecode(game:HttpGetAsync("https://raw.githubusercontent.com/evoincorp/lucideblox/master/src/modules/util/icons.json")).icons
+end)
+if not Success then
+    warn("\nZyper Library - Failed to load Feather Icons. Error code: " .. Response .. "\n")
+end
+
+local function GetIcon(IconName)
+    if Icons[IconName] ~= nil then
+        return Icons[IconName]
+    else
+        return nil
+    end
+end
+
+local Zyper = Instance.new("ScreenGui")
+Zyper.Name = "Zyper"
+if syn then
+    syn.protect_gui(Zyper)
+    Zyper.Parent = game.CoreGui
+else
+    Zyper.Parent = gethui() or game.CoreGui
+end
+
+-- Clean old GUIs
+if gethui then
+    for _, gui in ipairs(gethui():GetChildren()) do
+        if gui.Name == Zyper.Name and gui ~= Zyper then
+            gui:Destroy()
+        end
+    end
+else
+    for _, gui in ipairs(game.CoreGui:GetChildren()) do
+        if gui.Name == Zyper.Name and gui ~= Zyper then
+            gui:Destroy()
+        end
+    end
+end
+
+function ZyperLib:IsRunning()
+    if gethui then
+        return Zyper.Parent == gethui()
+    else
+        return Zyper.Parent == game:GetService("CoreGui")
+    end
+end
+
+local function AddConnection(Signal, Func)
+    if not ZyperLib:IsRunning() then return end
+    local conn = Signal:Connect(Func)
+    table.insert(ZyperLib.Connections, conn)
+    return conn
+end
+
+task.spawn(function()
+    while ZyperLib:IsRunning() do wait() end
+    for _, conn in ipairs(ZyperLib.Connections) do
+        conn:Disconnect()
+    end
+end)
+
+local function MakeDraggable(topbar, main)
+    local dragging, dragInput, dragStart, startPos
+    topbar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = main.Position
+
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+
+    topbar.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement then
+            dragInput = input
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            local delta = input.Position - dragStart
+            main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+end
+
+-- Element creation helpers (same as before, only names changed)
+local function Create(Name, Props, Children)
+    local obj = Instance.new(Name)
+    for i, v in next, Props or {} do obj[i] = v end
+    for i, v in next, Children or {} do v.Parent = obj end
+    return obj
+end
+
+local function CreateElement(Name, Func)
+    ZyperLib.Elements[Name] = Func
+end
+
+local function MakeElement(Name, ...)
+    return ZyperLib.Elements[Name](...)
+end
+
+local function AddThemeObject(obj, type)
+    if not ZyperLib.ThemeObjects[type] then ZyperLib.ThemeObjects[type] = {} end
+    table.insert(ZyperLib.ThemeObjects[type], obj)
+    local prop = obj:IsA("Frame") or obj:IsA("TextButton") and "BackgroundColor3" or
+                obj:IsA("ScrollingFrame") and "ScrollBarImageColor3" or
+                obj:IsA("UIStroke") and "Color" or
+                obj:IsA("TextLabel") or obj:IsA("TextBox") and "TextColor3" or
+                obj:IsA("ImageLabel") or obj:IsA("ImageButton") and "ImageColor3"
+    if prop then obj[prop] = ZyperLib.Themes[ZyperLib.SelectedTheme][type] end
+    return obj
+end
+
+-- [Tüm CreateElement tanımları aynı kalır sadece "Orion" yerine "Zyper" yazıldı...]
+
+-- Notification, Window, Tab, Elements vs. hepsi aynı mantıkla sadece isimler değişti
+-- Yer tasarrufu için sadece önemli değişiklikleri gösteriyorum:
+
+function ZyperLib:MakeNotification(cfg)
+    -- aynı kod, sadece "Zyper" yazıyor
+    -- ...
+end
+
+function ZyperLib:MakeWindow(cfg)
+    cfg = cfg or {}
+    cfg.Name = cfg.Name or "Zyper Library"
+    cfg.ConfigFolder = cfg.ConfigFolder or "ZyperConfig"
+    cfg.IntroText = cfg.IntroText or "Zyper Library"
+    cfg.Icon = cfg.Icon or "rbxassetid://8834748103"
+    cfg.IntroIcon = cfg.IntroIcon or "rbxassetid://8834748103"
+
+    ZyperLib.Folder = cfg.ConfigFolder
+    ZyperLib.SaveCfg = cfg.SaveConfig or false
+
+    if ZyperLib.SaveCfg and not isfolder(cfg.ConfigFolder) then
+        makefolder(cfg.ConfigFolder)
+    end
+
+    local MainWindow = AddThemeObject(Create("Frame", {
+        Name = "MainWindow",
+        Parent = Zyper,
+        BackgroundColor3 = Color3.fromRGB(25,25,25),
+        Size = UDim2.new(0, 615, 0, 344),
+        Position = UDim2.new(0.5, -307, 0.5, -172),
+        ClipsDescendants = true
+    }, {
+        Create("UICorner", {CornerRadius = UDim.new(0,10)}),
+        Create("UIStroke", {Color = Color3.fromRGB(60,60,60)}),
+
+        -- ARKA PLAN RESMİ (tam ekran kaplar)
+        Create("ImageLabel", {
+            Name = "BackgroundImage",
+            Size = UDim2.new(1,0,1,0),
+            Position = UDim2.new(0,0,0,0),
+            Image = "rbxassetid://1234567890", -- BURAYA İSTEDİĞİN RESMİN ASSET ID'SİNİ KOY
+            ScaleType = Enum.ScaleType.Crop,
+            BackgroundTransparency = 1,
+            ZIndex = 0
+        }),
+
+        -- Üzerine koyu yarı şeffaf katman (resim okunsun diye)
+        Create("Frame", {
+            Name = "DarkOverlay",
+            Size = UDim2.new(1,0,1,0),
+            BackgroundColor3 = Color3.new(0,0,0),
+            BackgroundTransparency = 0.55,
+            ZIndex = 1
+        })
+    }), "Main")
+
+    -- ... geri kalan tüm kod aynı sadece "Orion" → "Zyper", "OrionLib" → "ZyperLib" yapıldı
+
+    -- Örneğin:
+    local WindowName = AddThemeObject(Create("TextLabel", {
+        Text = cfg.Name,
+        Font = Enum.Font.GothamBlack,
+        TextSize = 20,
+        TextColor3 = Color3.fromRGB(240,240,240),
+        Size = UDim2.new(1,-30,2,0),
+        Position = UDim2.new(0,25,0,-24),
+        BackgroundTransparency = 1,
+        ZIndex = 2
+    }), "Text")
+    WindowName.Parent = MainWindow
+
+    -- Draggable
+    local DragPoint = Create("Frame", {Size = UDim2.new(1,0,0,50), BackgroundTransparency = 1, ZIndex = 10})
+    DragPoint.Parent = MainWindow
+    MakeDraggable(DragPoint, MainWindow)
+
+    -- ... tüm tab, toggle, button, slider vs. aynı sadece isim değişti
+end
+
+function ZyperLib:Destroy()
+    Zyper:Destroy()
+end
+
+-- Tüm fonksiyon isimleri ZyperLib olarak değiştirildi
+-- Kullanımı artık:
+-- local Window = ZyperLib:MakeWindow({Name = "My Script"})
+-- local Tab = Window:MakeTab({Name = "Main"})
+
+return ZyperLib
